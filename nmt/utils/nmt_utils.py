@@ -21,8 +21,8 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from ..utils import evaluation_utils
-from ..utils import misc_utils as utils
+from utils import evaluation_utils
+from utils import misc_utils as utils
 
 __all__ = ["decode_and_evaluate", "get_translation"]
 
@@ -46,37 +46,37 @@ def decode_and_evaluate(name,
 
     start_time = time.time()
     num_sentences = 0
-    with codecs.getwriter("utf-8")(
-        tf.gfile.GFile(trans_file, mode="wb")) as trans_f:
-      trans_f.write("")  # Write empty string to ensure file is created.
+    # with codecs.getwriter("utf-8")(
+    #     tf.gfile.GFile(trans_file, mode="wb")) as trans_f:
+    #   trans_f.write("")  # Write empty string to ensure file is created.
+    trans_f = []
+    if infer_mode == "greedy":
+      num_translations_per_input = 1
+    elif infer_mode == "beam_search":
+      num_translations_per_input = min(num_translations_per_input, beam_width)
 
-      if infer_mode == "greedy":
-        num_translations_per_input = 1
-      elif infer_mode == "beam_search":
-        num_translations_per_input = min(num_translations_per_input, beam_width)
+    while True:
+      try:
+        nmt_outputs, _ = model.decode(sess)
+        if infer_mode != "beam_search":
+          nmt_outputs = np.expand_dims(nmt_outputs, 0)
 
-      while True:
-        try:
-          nmt_outputs, _ = model.decode(sess)
-          if infer_mode != "beam_search":
-            nmt_outputs = np.expand_dims(nmt_outputs, 0)
+        batch_size = nmt_outputs.shape[1]
+        num_sentences += batch_size
 
-          batch_size = nmt_outputs.shape[1]
-          num_sentences += batch_size
-
-          for sent_id in range(batch_size):
-            for beam_id in range(num_translations_per_input):
-              translation = get_translation(
-                  nmt_outputs[beam_id],
-                  sent_id,
-                  tgt_eos=tgt_eos,
-                  subword_option=subword_option)
-              trans_f.write((translation + b"\n").decode("utf-8"))
-        except tf.errors.OutOfRangeError:
-          utils.print_time(
-              "  done, num sentences %d, num translations per input %d" %
-              (num_sentences, num_translations_per_input), start_time)
-          break
+        for sent_id in range(batch_size):
+          for beam_id in range(num_translations_per_input):
+            translation = get_translation(
+                nmt_outputs[beam_id],
+                sent_id,
+                tgt_eos=tgt_eos,
+                subword_option=subword_option)
+            trans_f.append((translation + b"\n").decode("utf-8"))
+      except tf.errors.OutOfRangeError:
+        utils.print_time(
+            "  done, num sentences %d, num translations per input %d" %
+            (num_sentences, num_translations_per_input), start_time)
+        break
 
   # Evaluation
   evaluation_scores = {}
@@ -90,7 +90,7 @@ def decode_and_evaluate(name,
       evaluation_scores[metric] = score
       utils.print_out("  %s %s: %.1f" % (metric, name, score))
 
-  return evaluation_scores
+  return trans_f
 
 
 def get_translation(nmt_outputs, sent_id, tgt_eos, subword_option):

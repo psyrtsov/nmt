@@ -23,9 +23,9 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from . import inference
-from . import model_helper
-from .utils import common_test_utils
+import inference
+import model_helper
+from utils import common_test_utils
 
 float32 = np.float32
 int32 = np.int32

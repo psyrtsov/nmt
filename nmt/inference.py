@@ -21,12 +21,12 @@ import time
 
 import tensorflow as tf
 
-from . import attention_model
-from . import gnmt_model
-from . import model as nmt_model
-from . import model_helper
-from .utils import misc_utils as utils
-from .utils import nmt_utils
+import attention_model
+import gnmt_model
+import model as nmt_model
+import model_helper
+from utils import misc_utils as utils
+from utils import nmt_utils
 
 __all__ = ["load_data", "inference",
            "single_worker_inference", "multi_worker_inference"]
@@ -121,7 +121,7 @@ def inference(ckpt_path,
   sess, loaded_infer_model = start_sess_and_load_model(infer_model, ckpt_path)
 
   if num_workers == 1:
-    single_worker_inference(
+    return single_worker_inference(
         sess,
         infer_model,
         loaded_infer_model,
@@ -151,7 +151,8 @@ def single_worker_inference(sess,
   output_infer = inference_output_file
 
   # Read data
-  infer_data = load_data(inference_input_file, hparams)
+  # infer_data = load_data(inference_input_file, hparams)
+  infer_data = [inference_input_file]
 
   with infer_model.graph.as_default():
     sess.run(
@@ -172,7 +173,7 @@ def single_worker_inference(sess,
           tgt_eos=hparams.eos,
           subword_option=hparams.subword_option)
     else:
-      nmt_utils.decode_and_evaluate(
+      return nmt_utils.decode_and_evaluate(
           "infer",
           loaded_infer_model,
           sess,

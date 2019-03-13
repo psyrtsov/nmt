@@ -19,18 +19,23 @@ import math
 import os
 import random
 import time
+import sys
 
 import tensorflow as tf
 
-from . import attention_model
-from . import gnmt_model
-from . import inference
-from . import model as nmt_model
-from . import model_helper
-from .utils import misc_utils as utils
-from .utils import nmt_utils
+server_path=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(server_path)
+print(sys.path)
 
-utils.check_tensorflow_version()
+import attention_model
+import gnmt_model
+import inference
+import model as nmt_model
+import utils
+import utils.misc_utils
+import model_helper
+
+utils.misc_utils.check_tensorflow_version()
 
 __all__ = [
     "run_sample_decode", "run_internal_eval", "run_external_eval",
@@ -686,7 +691,7 @@ def _sample_decode(model, global_step, sess, hparams, iterator, src_data,
     # get the top translation.
     nmt_outputs = nmt_outputs[0]
 
-  translation = nmt_utils.get_translation(
+  translation = utils.get_translation(
       nmt_outputs,
       sent_id=0,
       tgt_eos=hparams.eos,
@@ -716,7 +721,7 @@ def _external_eval(model, global_step, sess, hparams, iterator,
   sess.run(iterator.initializer, feed_dict=iterator_feed_dict)
 
   output = os.path.join(out_dir, "output_%s" % label)
-  scores = nmt_utils.decode_and_evaluate(
+  scores = utils.decode_and_evaluate(
       label,
       model,
       sess,
