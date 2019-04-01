@@ -31,11 +31,11 @@ import attention_model
 import gnmt_model
 import inference
 import model as nmt_model
-import utils
-import utils.misc_utils
+from utils import nmt_utils
+from utils import misc_utils
 import model_helper
 
-utils.misc_utils.check_tensorflow_version()
+misc_utils.check_tensorflow_version()
 
 __all__ = [
     "run_sample_decode", "run_internal_eval", "run_external_eval",
@@ -374,7 +374,7 @@ def update_stats(stats, start_time, step_result):
 
 def print_step_info(prefix, global_step, info, result_summary, log_f):
   """Print all info at the current global step."""
-  utils.print_out(
+  misc_utils.print_out(
       "%sstep %d lr %g step-time %.2fs wps %.2fK ppl %.2f gN %.2f %s, %s" %
       (prefix, global_step, info["learning_rate"], info["avg_step_time"],
        info["speed"], info["train_ppl"], info["avg_grad_norm"], result_summary,
@@ -387,7 +387,7 @@ def add_info_summaries(summary_writer, global_step, info):
   excluded_list = ["learning_rate"]
   for key in info:
     if key not in excluded_list:
-      utils.add_summary(summary_writer, global_step, key, info[key])
+      misc_utils.add_summary(summary_writer, global_step, key, info[key])
 
 
 def process_stats(stats, info, global_step, steps_per_stats, log_f):
@@ -400,13 +400,13 @@ def process_stats(stats, info, global_step, steps_per_stats, log_f):
 
   # Per-predict info
   info["train_ppl"] = (
-      utils.safe_exp(stats["train_loss"] / stats["predict_count"]))
+      misc_utils.safe_exp(stats["train_loss"] / stats["predict_count"]))
 
   # Check for overflow
   is_overflow = False
   train_ppl = info["train_ppl"]
   if math.isnan(train_ppl) or math.isinf(train_ppl) or train_ppl > 1e20:
-    utils.print_out("  step %d overflow, stop early" % global_step,
+    misc_utils.print_out("  step %d overflow, stop early" % global_step,
                     log_f)
     is_overflow = True
 
@@ -424,12 +424,12 @@ def before_train(loaded_train_model, train_model, train_sess, global_step,
           "learning_rate": loaded_train_model.learning_rate.eval(
               session=train_sess)}
   start_train_time = time.time()
-  utils.print_out("# Start step %d, lr %g, %s" %
+  misc_utils.print_out("# Start step %d, lr %g, %s" %
                   (global_step, info["learning_rate"], time.ctime()), log_f)
 
   # Initialize all of the iterators
   skip_count = hparams.batch_size * hparams.epoch_step
-  utils.print_out("# Init train iterator, skipping %d elements" % skip_count)
+  misc_utils.print_out("# Init train iterator, skipping %d elements" % skip_count)
   train_sess.run(
       train_model.iterator.initializer,
       feed_dict={train_model.skip_count_placeholder: skip_count})
@@ -483,10 +483,10 @@ def train(hparams, scope=None, target_session=""):
   # Log and output files
   log_file = os.path.join(out_dir, "log_%d" % time.time())
   log_f = tf.gfile.GFile(log_file, mode="a")
-  utils.print_out("# log_file=%s" % log_file, log_f)
+  misc_utils.print_out("# log_file=%s" % log_file, log_f)
 
   # TensorFlow model
-  config_proto = utils.get_config_proto(
+  config_proto = misc_utils.get_config_proto(
       log_device_placement=log_device_placement,
       num_intra_threads=hparams.num_intra_threads,
       num_inter_threads=hparams.num_inter_threads)
@@ -528,7 +528,7 @@ def train(hparams, scope=None, target_session=""):
     except tf.errors.OutOfRangeError:
       # Finished going through the training dataset.  Go to next epoch.
       hparams.epoch_step = 0
-      utils.print_out(
+      misc_utils.print_out(
           "# Finished an epoch, step %d. Perform external evaluation" %
           global_step)
       run_sample_decode(infer_model, infer_sess, model_dir, hparams,
@@ -565,7 +565,7 @@ def train(hparams, scope=None, target_session=""):
 
     if global_step - last_eval_step >= steps_per_eval:
       last_eval_step = global_step
-      utils.print_out("# Save eval, global step %d" % global_step)
+      misc_utils.print_out("# Save eval, global step %d" % global_step)
       add_info_summaries(summary_writer, global_step, info)
 
       # Save checkpoint
@@ -611,11 +611,11 @@ def train(hparams, scope=None, target_session=""):
           model_dir, infer_model, infer_sess, eval_model, eval_sess, hparams,
           summary_writer, sample_src_data, sample_tgt_data, avg_ckpts))
   print_step_info("# Final, ", global_step, info, result_summary, log_f)
-  utils.print_time("# Done training!", start_train_time)
+  misc_utils.print_time("# Done training!", start_train_time)
 
   summary_writer.close()
 
-  utils.print_out("# Start evaluating saved best models.")
+  misc_utils.print_out("# Start evaluating saved best models.")
   for metric in hparams.metrics:
     best_model_dir = getattr(hparams, "best_" + metric + "_dir")
     summary_writer = tf.summary.FileWriter(
@@ -668,7 +668,7 @@ def _internal_eval(model, global_step, sess, iterator, iterator_feed_dict,
   """Computing perplexity."""
   sess.run(iterator.initializer, feed_dict=iterator_feed_dict)
   ppl = model_helper.compute_perplexity(model, sess, label)
-  utils.add_summary(summary_writer, global_step, "%s_ppl" % label, ppl)
+  misc_utils.add_summary(summary_writer, global_step, "%s_ppl" % label, ppl)
   return ppl
 
 
@@ -677,7 +677,7 @@ def _sample_decode(model, global_step, sess, hparams, iterator, src_data,
                    iterator_batch_size_placeholder, summary_writer):
   """Pick a sentence and decode."""
   decode_id = random.randint(0, len(src_data) - 1)
-  utils.print_out("  # %d" % decode_id)
+  misc_utils.print_out("  # %d" % decode_id)
 
   iterator_feed_dict = {
       iterator_src_placeholder: [src_data[decode_id]],
@@ -691,14 +691,14 @@ def _sample_decode(model, global_step, sess, hparams, iterator, src_data,
     # get the top translation.
     nmt_outputs = nmt_outputs[0]
 
-  translation = utils.get_translation(
+  translation = nmt_utils.get_translation(
       nmt_outputs,
       sent_id=0,
       tgt_eos=hparams.eos,
       subword_option=hparams.subword_option)
-  utils.print_out("    src: %s" % src_data[decode_id])
-  utils.print_out("    ref: %s" % tgt_data[decode_id])
-  utils.print_out(b"    nmt: " + translation)
+  misc_utils.print_out("    src: %s" % src_data[decode_id])
+  misc_utils.print_out("    ref: %s" % tgt_data[decode_id])
+  misc_utils.print_out(b"    nmt: " + translation)
 
   # Summary
   if attention_summary is not None:
@@ -716,12 +716,12 @@ def _external_eval(model, global_step, sess, hparams, iterator,
     label = "avg_" + label
 
   if decode:
-    utils.print_out("# External evaluation, global step %d" % global_step)
+    misc_utils.print_out("# External evaluation, global step %d" % global_step)
 
   sess.run(iterator.initializer, feed_dict=iterator_feed_dict)
 
   output = os.path.join(out_dir, "output_%s" % label)
-  scores = utils.decode_and_evaluate(
+  scores = nmt_utils.decode_and_evaluate(
       label,
       model,
       sess,
@@ -741,7 +741,7 @@ def _external_eval(model, global_step, sess, hparams, iterator,
       else:
         best_metric_label = "best_" + metric
 
-      utils.add_summary(summary_writer, global_step, "%s_%s" % (label, metric),
+      misc_utils.add_summary(summary_writer, global_step, "%s_%s" % (label, metric),
                         scores[metric])
       # metric: larger is better
       if save_on_best and scores[metric] > getattr(hparams, best_metric_label):
@@ -751,5 +751,5 @@ def _external_eval(model, global_step, sess, hparams, iterator,
             os.path.join(
                 getattr(hparams, best_metric_label + "_dir"), "translate.ckpt"),
             global_step=model.global_step)
-    utils.save_hparams(out_dir, hparams)
+    misc_utils.save_hparams(out_dir, hparams)
   return scores
